@@ -22,7 +22,7 @@
 # PLEASE don't set the memory option as we should use the default memory which is based on the number of cores 
 ##SBATCH --mem-per-cpu=9000M
 # Insert your own username to get e-mail notifications (note: keep just one "#" before SBATCH)
-#SBATCH --mail-user=ejohn10@liverpool.ac.uk
+##SBATCH --mail-user=username@liverpool.ac.uk
 # Notify user by email when certain event types occur
 #SBATCH --mail-type=ALL
 #
