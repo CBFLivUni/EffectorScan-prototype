@@ -47,3 +47,20 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+
+#processed data
+pdbs/*
+processed_fasta/*
+
+#output data
+outputs/clustering_results/*
+outputs/structural_alignment/*
+outputs/structural_alignment/*/*
+
+#databases
+databases/*
+tmp/*
+
+#presentations
+presentations/*

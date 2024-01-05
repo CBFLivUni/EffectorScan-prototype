@@ -1,0 +1,8 @@
+"","query","target","alntmscore","lddt","fident","alnlen","mismatch","gapopen","qstart","qend","tstart","tend","evalue","bits","query_prediction","query_effector_type_score","target_prediction"
+"1","FOXG_22058","FOXG_22193",0.6256,0.7464,0.829,158,24,2,1,158,1,155,7.786e-23,645,"Apoplastic",0.639,"Cytoplasmic"
+"2","FOXG_14069","FOXG_22509",0.6079,0.5771,0.14,135,93,8,113,235,1,124,4.453e-05,119,"Apoplastic",0.573,"Non-effector"
+"3","FOXG_12469","FOXG_22509",0.5995,0.5682,0.138,130,89,8,118,235,6,124,4.573e-05,116,"Apoplastic",0.58,"Non-effector"
+"4","FOXG_22193","FOXG_22058",0.5938,0.8321,0.772,167,35,2,1,166,1,165,4.317e-23,644,"Cytoplasmic",0.766,"Apoplastic"
+"5","FOXG_22047","FOXG_06911",0.5538,0.5382,0.129,147,99,6,1,120,460,604,0.0002494,97,"Apoplastic",0.708,"Non-effector"
+"6","FOXG_12469","FOXG_14069",0.5212,0.9706,0.982,235,4,0,1,235,1,235,1.403e-44,1146,"Apoplastic",0.58,"Apoplastic"
+"7","FOXG_14069","FOXG_12469",0.5212,0.9687,0.982,235,4,0,1,235,1,235,1.899e-44,1145,"Apoplastic",0.573,"Apoplastic"

@@ -1,0 +1,519 @@
+---
+title: "FungiDB"
+subtitle: "Structure QC"
+author: "Emily Johnson"
+date: today
+date-format: short
+format:
+  html:
+    self-contained: true
+    theme: litera
+    toc: true
+editor: source
+code-block-bg: true
+code-block-border-left: "#31BAE9"
+---
+
+# Load libraries
+
+```{r}
+
+library(tidyverse)
+library(data.table)
+library(cowplot) 
+library(smplot2)
+library(ggpubr)
+source("code/palettes.R")
+source("code/utilityFunctions.R")
+
+```
+
+# Read in the data
+
+```{r}
+
+# Core gene and unique gene QC logs
+unique_genes_input_files <- list.files("pdbs/unique_genes/logs/",pattern = ".txt", full.names = TRUE) 
+core_genes_input_files <- list.files("pdbs/core_genes/logs/",pattern = ".txt", full.names = TRUE) 
+
+# Effector annotation
+sequence_anno <- read.csv("fusarium_oxysporum_f._sp._lycopersici_effector_annotation.csv", row.names=1)
+
+```
+
+
+# Process log data
+
+## Unique genes
+
+```{r}
+
+# Run 'extractQCdata' function on input files and extract data
+unique_genes_QC_info <- extractQCData(unique_genes_input_files)
+unique_genes_QC_data <- unique_genes_QC_info$logData
+
+
+# Write failed job IDs to text file
+# These can be reran on cluster using script
+# 'run_colabfold_cluster_GPU_FAILED_JOBS.sh'
+write_delim(data.frame(unique_genes_QC_info$failedJobs), "outputs/unique_genes_failed_jobs.txt")
+
+
+# Annotate the QC data with the effector information
+unique_genes_QC_data_anno <- unique_genes_QC_data %>% 
+  dplyr::inner_join(sequence_anno)
+
+```
+
+```{r}
+
+# Extract IDs of lowest and highest ranked models per type of effector
+unique_genes_QC_data_anno[unique_genes_QC_data_anno$prediction == "Apoplastic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+unique_genes_QC_data_anno[unique_genes_QC_data_anno$prediction == "Cytoplasmic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+unique_genes_QC_data_anno[unique_genes_QC_data_anno$prediction == "Apoplastic/cytoplasmic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+unique_genes_QC_data_anno[unique_genes_QC_data_anno$prediction == "Non-effector"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+```
+
+```{r}
+
+# Correlation between pLDDT and PTM
+cor(unique_genes_QC_data_anno$pLDDT, unique_genes_QC_data_anno$pTM)
+
+```
+
+```{r}
+
+# Create a dataframe of frequencies of confidence score cut-offs
+unique_genes_QC_data_anno$pLDDT_category <- cut(unique_genes_QC_data_anno$pLDDT, c(0,50,70,90,100), c("Very low confidence", "Low confidence", "Medium confidence", "High confidence"))
+
+unigenes_confidence_counts <- data.frame(table(unique_genes_QC_data_anno$prediction, unique_genes_QC_data_anno$pLDDT_category)) %>%
+  rename("effector" = Var1, "confidence" = Var2) %>%
+  mutate("gene_type" = replicate(nrow(.), "Unique"))
+                  
+```
+
+```{r}
+
+unigenes_QC_filtered_pLDDT <- unique_genes_QC_data_anno[unique_genes_QC_data_anno$pLDDT_category != "Very low confidence" & unique_genes_QC_data_anno$pLDDT_category != "Low confidence",]
+# Bug where pLDDT isn't working... 
+
+table(unigenes_QC_filtered_pLDDT$prediction)
+
+
+
+unigenes_QC_filtered_pTM <- unique_genes_QC_data_anno[unique_genes_QC_data_anno$pTM > 0.5,]
+
+table(unigenes_QC_filtered_pTM$prediction)
+
+```
+
+```{r}
+
+unique_genes_effector_IDs <- unique_genes_QC_data_anno %>%
+  filter(prediction != "Non-effector") %>%
+  select("ID") 
+
+
+write_delim(data.frame(unique_genes_effector_IDs), "outputs/unique_genes_effector_IDs.txt")
+
+
+```
+
+## Core genes
+
+```{r}
+#| eval: false
+
+# Run 'extractQCdata' function on input files and extract data
+core_genes_QC_info <- extractQCData(core_genes_input_files)
+core_genes_QC_data <- core_genes_QC_info$logData
+
+
+# Write failed job IDs to text file
+# These can be reran on cluster using script
+# 'run_colabfold_cluster_GPU_FAILED_JOBS.sh'
+write_delim(data.frame(core_genes_QC_info$failedJobs), "outputs/core_genes_failed_jobs.txt")
+
+
+# Annotate the QC data with the effector information
+core_genes_QC_data_anno <- core_genes_QC_data %>% 
+  dplyr::inner_join(sequence_anno)
+
+
+write_rds(core_genes_QC_data_anno, "outputs/core_genes_QC_data_anno.rds")
+
+```
+
+```{r}
+
+core_genes_QC_data_anno <- readRDS("outputs/core_genes_QC_data_anno.rds")
+
+```
+
+```{r}
+
+# Extract IDs of lowest and highest ranked models per type of effector
+core_genes_QC_data_anno[core_genes_QC_data_anno$prediction == "Apoplastic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+core_genes_QC_data_anno[core_genes_QC_data_anno$prediction == "Cytoplasmic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+core_genes_QC_data_anno[core_genes_QC_data_anno$prediction == "Apoplastic/cytoplasmic"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+core_genes_QC_data_anno[core_genes_QC_data_anno$prediction == "Non-effector"] %>% arrange(desc(pLDDT)) %>% pull(ID, pLDDT)
+
+
+```
+
+```{r}
+
+# Correlation between pLDDT and PTM
+cor(core_genes_QC_data_anno$pLDDT, core_genes_QC_data_anno$pTM)
+
+```
+
+```{r}
+
+# Create a dataframe of frequencies of confidence score cut-offs
+core_genes_QC_data_anno$pLDDT_category <- cut(core_genes_QC_data_anno$pLDDT, c(0,50,70,90,100), c("Very low confidence", "Low confidence", "Medium confidence", "High confidence"))
+
+crgenes_confidence_counts <- data.frame(table(core_genes_QC_data_anno$prediction, core_genes_QC_data_anno$pLDDT_category)) %>%
+  rename("effector" = Var1, "confidence" = Var2) %>%
+  mutate("gene_type" = replicate(nrow(.), "Core"))
+
+```
+
+```{r}
+
+core_genes_effector_IDs <- core_genes_QC_data_anno %>%
+  filter(prediction != "Non-effector") %>%
+  select("ID") 
+
+
+write_delim(data.frame(core_genes_effector_IDs), "outputs/core_genes_effector_IDs.txt")
+
+
+```
+
+## Combined data
+
+```{r}
+
+QC_data_anno <- rbind(core_genes_QC_data_anno, unique_genes_QC_data_anno)
+confidence_counts <- rbind(crgenes_confidence_counts, unigenes_confidence_counts)
+
+write.csv(QC_data_anno, "outputs/structure_QC_data.csv")
+
+```
+
+# Create plots of annotated log data
+
+## Unique genes
+
+```{r}
+
+# Correlation plot
+pLDDT_PTM_cor_plot <- ggplot(unique_genes_QC_data_anno, 
+                 aes(x=pLDDT, y=pTM, color=prediction, group=prediction, fill=prediction)) + 
+    geom_point() + 
+    geom_smooth(method = "lm", alpha = 0.15) +
+    scale_color_manual(
+      values = project_palettes$effector,
+      aesthetics = c("fill", "color")) + 
+    labs(color='Effector type', fill='Effector type') + 
+    ggtitle("Correlation between pLDDT and pTM scores") + 
+    sm_statCorr(corr_method = "pearson") + 
+    theme_cowplot()
+
+pLDDT_PTM_cor_plot
+
+```
+
+```{r}
+
+# pLDDT plot
+pLDDT_plot <- ggplot(unique_genes_QC_data_anno, aes(x=prediction, y=pLDDT, fill=prediction)) +
+  sm_raincloud() +
+  #geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  #geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  theme_cowplot()+
+  xlab("") + 
+  scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+  labs(color='Effector type', fill='Effector type') + 
+  ggtitle("Unique genes")
+  
+
+my_comparisons <- list(c("Apoplastic", "Cytoplasmic"), c("Apoplastic", "Apoplastic/cytoplasmic"), c("Cytoplasmic", "Apoplastic/cytoplasmic"))
+#, c("Apoplastic", "Non-effector"), c("Cytoplasmic", "Non-effector"), c("Apoplastic/cytoplasmic", "Non-effector")
+pLDDT_plot <- pLDDT_plot + stat_compare_means(comparisons = my_comparisons, method = "t.test") 
+pLDDT_plot
+
+```
+
+```{r}
+
+# pTM plot
+pTM_plot <- ggplot(unique_genes_QC_data_anno, aes(x=prediction, y=pTM, fill=prediction)) +
+  sm_raincloud() +
+  #geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  #geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  theme_cowplot()+
+  xlab("") + 
+  scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+  labs(color='Effector type', fill='Effector type') + 
+  ggtitle("Unique genes")
+
+
+my_comparisons <- list(c("Apoplastic", "Cytoplasmic"), c("Apoplastic", "Apoplastic/cytoplasmic"), c("Cytoplasmic", "Apoplastic/cytoplasmic"))
+#, c("Apoplastic", "Non-effector"), c("Cytoplasmic", "Non-effector"), c("Apoplastic/cytoplasmic", "Non-effector")
+pTM_plot <- pTM_plot + stat_compare_means(comparisons = my_comparisons, method = "t.test") 
+pTM_plot
+
+```
+
+```{r}
+
+ggplot(unigenes_confidence_counts, aes(fill=confidence, y=Freq, x=effector)) + 
+    geom_bar(position="stack", stat="identity") + 
+    scale_fill_manual(values = project_palettes$confidence_score) + 
+    theme_cowplot() +
+    xlab("") + 
+    ylab("Count") +
+    scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+    labs(fill='Confidence') + 
+    ggtitle("Unique genes")
+
+```
+
+```{r}
+
+ggsave(filename = "figures/05_structure_QC/unique_genes_pLDDT_plot.pdf", plot = pLDDT_plot,
+  width = 7.5,
+  height = 5.5,
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = "white")
+
+
+ggsave(filename = "figures/05_structure_QC/unique_genes_pTM_plot.pdf", plot = pTM_plot,
+  width = 7.5,
+  height = 5.5,
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = "white")
+
+
+ggsave(filename = "figures/05_structure_QC/unique_genes_pTM_plDDT_corplot.pdf", plot = pLDDT_PTM_cor_plot,
+  width = 7.5,
+  height = 5.5,
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE,
+  bg = "white")
+
+
+```
+
+## Core genes
+
+```{r}
+
+# Correlation plot
+pLDDT_PTM_cor_plot <- ggplot(core_genes_QC_data_anno, 
+                             aes(x=pLDDT, y=pTM, color=prediction, group=prediction, fill=prediction)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", alpha = 0.15) +
+  scale_color_manual(
+    values = project_palettes$effector,
+    aesthetics = c("fill", "color")) + 
+  labs(color='Effector type', fill='Effector type') + 
+  ggtitle("Correlation between pLDDT and pTM scores") + 
+  sm_statCorr(corr_method = "pearson") + 
+  theme_cowplot()
+
+pLDDT_PTM_cor_plot
+
+```
+
+```{r}
+
+# pLDDT plot
+pLDDT_plot <- ggplot(core_genes_QC_data_anno, aes(x=prediction, y=pLDDT, fill=prediction)) +
+  sm_raincloud() +
+  #geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  #geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  theme_cowplot()+
+  xlab("") + 
+  scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+  labs(color='Effector type', fill='Effector type') + 
+  ggtitle("Core genes")
+
+
+my_comparisons <- list(c("Apoplastic", "Cytoplasmic"), c("Apoplastic", "Apoplastic/cytoplasmic"), c("Cytoplasmic", "Apoplastic/cytoplasmic"))
+#, c("Apoplastic", "Non-effector"), c("Cytoplasmic", "Non-effector"), c("Apoplastic/cytoplasmic", "Non-effector")
+pLDDT_plot <- pLDDT_plot + stat_compare_means(comparisons = my_comparisons, method = "t.test") 
+pLDDT_plot
+
+```
+
+```{r}
+
+# pTM plot
+pTM_plot <- ggplot(core_genes_QC_data_anno, aes(x=prediction, y=pTM, fill=prediction)) +
+  sm_raincloud() +
+  #geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  #geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  theme_cowplot()+
+  xlab("") + 
+  scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+  labs(color='Effector type', fill='Effector type') + 
+  ggtitle("Core genes")
+
+
+my_comparisons <- list(c("Apoplastic", "Cytoplasmic"), c("Apoplastic", "Apoplastic/cytoplasmic"), c("Cytoplasmic", "Apoplastic/cytoplasmic"))
+#, c("Apoplastic", "Non-effector"), c("Cytoplasmic", "Non-effector"), c("Apoplastic/cytoplasmic", "Non-effector")
+pTM_plot <- pTM_plot + stat_compare_means(comparisons = my_comparisons, method = "t.test") 
+pTM_plot
+
+```
+
+```{r}
+
+ggplot(unigenes_confidence_counts, aes(fill=confidence, y=Freq, x=effector)) + 
+  geom_bar(position="stack", stat="identity") + 
+  scale_fill_manual(values = project_palettes$confidence_score) + 
+  theme_cowplot() +
+  xlab("") + 
+  ylab("Count") +
+  scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+  labs(fill='Confidence') + 
+  ggtitle("Unique genes")
+
+```
+
+```{r}
+
+ggsave(filename = "figures/05_structure_QC/core_genes_pLDDT_plot.pdf", plot = pLDDT_plot,
+       width = 7.5,
+       height = 5.5,
+       units = c("in"),
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+
+ggsave(filename = "figures/05_structure_QC/core_genes_pTM_plot.pdf", plot = pTM_plot,
+       width = 7.5,
+       height = 5.5,
+       units = c("in"),
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+
+ggsave(filename = "figures/05_structure_QC/core_genes_pTM_plDDT_corplot.pdf", plot = pLDDT_PTM_cor_plot,
+       width = 7.5,
+       height = 5.5,
+       units = c("in"),
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+
+```
+
+
+
+## Combined data
+
+```{r}
+
+pLDDT_plot <- ggplot(QC_data_anno, aes(x=prediction, y=pLDDT, fill=prediction)) +
+  geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  facet_wrap(~gene_type)+
+  theme_cowplot()+
+  theme(axis.title.x=element_blank(),
+          axis.text.x = element_text(angle = 40,  hjust=1))+
+  labs(color="Effector type", fill="Effector type", y="pLDDT score") +
+  theme(legend.position = "none")
+
+
+
+pTM_plot <- ggplot(QC_data_anno, aes(x=prediction, y=pTM, fill=prediction)) +
+  geom_violin(width=0.8, alpha = 0.3, color = NA) +
+  geom_boxplot(width = 0.1, alpha = 0.8, na.rm = TRUE)+
+  scale_fill_manual(values = project_palettes$effector) + 
+  facet_wrap(~gene_type)+
+  theme_cowplot()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x = element_text(angle = 40,  hjust=1))+
+  labs(color="Effector type", fill="Effector type", y="pTM score") +
+  theme(legend.position = "none")
+
+
+QC_summary <- ggarrange(pLDDT_plot, pTM_plot, nrow = 2)
+
+```
+
+```{r}
+
+confidence_score_counts <- ggplot(confidence_counts, aes(fill=confidence, y=Freq, x=effector)) + 
+    facet_wrap(~gene_type, scales = "free_y")+
+    geom_bar(position="stack", stat="identity", width = 0.5) + 
+    scale_fill_manual(values = project_palettes$confidence_score) +
+    theme_cowplot() +
+    xlab("") + 
+    ylab("Count") +
+    scale_x_discrete(labels=c("Apoplastic/cytoplasmic" = "Apoplastic/\n cytoplasmic")) +
+    labs(fill='Confidence') 
+
+
+confidence_score_counts
+
+```
+
+```{r}
+
+ggsave(filename = "figures/05_structure_QC/overall_QC_summary.pdf", plot = QC_summary,
+       width = 6.5,
+       height = 6.5,
+       units = c("in"),
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+
+ggsave(filename = "figures/05_structure_QC/QC_confidence_score_counts.pdf", plot = confidence_score_counts,
+       width = 11.5,
+       height = 5,
+       units = c("in"),
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+```
+
+
+```{r}
+sessionInfo()
+```
+
+:::
